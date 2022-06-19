@@ -9,9 +9,10 @@ In this tutorial we will use Graph Differential Equations (GDEs) to perform clas
 using GraphNeuralNetworks, DifferentialEquations
 using DiffEqFlux: NeuralODE
 using GraphNeuralNetworks.GNNGraphs: normalized_adjacency
-using Lux, NNlib, Optimisers, Zygote, Random, ComponentArrays
+using Lux, NNlib, Zygote, Random, ComponentArrays
 using Lux: AbstractExplicitLayer, glorot_normal, zeros32
 import Lux: initialparameters, initialstates
+import Optimization, OptimizationFlux
 using DiffEqSensitivity
 using Statistics: mean
 using MLDatasets: Cora
@@ -121,14 +122,13 @@ function train()
     st = st |> device
 
     ## Optimizer
-    opt = Optimisers.ADAM(0.01f0)
-    st_opt = Optimisers.setup(opt,ps)
-
+    opt = ADAM(0.01f0)
+    loss_clr(p) = loss(X, ytrain, train_mask, model, p, st)[1]
+    optf = Optimization.OptimizationFunction((x,p)->loss_clr(x), Optimization.AutoZygote())
     ## Training Loop
     for _ in 1:epochs
-        (l,st), back = pullback(p->loss(X, ytrain, train_mask, model, p, st), ps)
-        gs = back((one(l), nothing))[1]
-        st_opt, ps = Optimisers.update(st_opt, ps, gs)
+        optprob = Optimization.OptimizationProblem(optf, ps)
+        ps = Optimization.solve(optprob, opt).minimizer
         @show eval_loss_accuracy(X, y, val_mask, model, ps, st)
     end
 end
@@ -148,6 +148,7 @@ using GraphNeuralNetworks.GNNGraphs: normalized_adjacency
 using Lux, NNlib, Optimisers, Zygote, Random, ComponentArrays
 using Lux: AbstractExplicitLayer, glorot_normal, zeros32
 import Lux: initialparameters, initialstates
+using Optimization, OptimizationFlux
 using DiffEqSensitivity
 using Statistics: mean
 using MLDatasets: Cora
@@ -279,7 +280,7 @@ end
 ```
 
 ### Setup Model
-We need to manually set up our mode with `Lux`, and convert the paramters to `ComponentArray` so that they can work well with sensitivity algorithms.
+We need to manually set up our model with `Lux`, and convert the paramters to `ComponentArray` so that they can work well with sensitivity algorithms.
 ```@example graphneuralode
 rng = Random.default_rng()
 Random.seed!(rng, 0)
@@ -293,20 +294,20 @@ st = st |> device
 For this task we will be using the `ADAM` optimizer with a learning rate of `0.01`.
 
 ```@example graphneuralode
-opt = Optimisers.ADAM(0.01f0)
-st_opt = Optimisers.setup(opt,ps)
+opt = ADAM(0.01f0)
+loss_clr(p) = loss(X, ytrain, train_mask, model, p, st)[1]
+optf = Optimization.OptimizationFunction((x,p)->loss_clr(x), Optimization.AutoZygote())
 ```
 
 ## Training Loop
 
-Finally, we use the package `Optimisers` to learn the parameters `ps`. We run the training loop for `epochs` number of iterations.
+Finally, we use the package `Optimization.solve` to learn the parameters `ps`. We run the training loop for `epochs` number of iterations.
 
 ```@example graphneuralode
 for _ in 1:epochs
-    (l,st), back = pullback(p->loss(X, ytrain, train_mask, model, p, st), ps)
-    gs = back((one(l), nothing))[1]
-    st_opt, ps = Optimisers.update(st_opt, ps, gs)
-    @show eval_loss_accuracy(X, y, val_mask, model, ps, st)
+	optprob = Optimization.OptimizationProblem(optf, ps)
+	ps = Optimization.solve(optprob, opt).minimizer
+	@show eval_loss_accuracy(X, y, val_mask, model, ps, st)
 end
 ```
 
