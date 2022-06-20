@@ -5,7 +5,6 @@ This tutorial has been adapted from [here](https://github.com/CarloLucibello/Gra
 In this tutorial we will use Graph Differential Equations (GDEs) to perform classification on the [CORA Dataset](https://relational.fit.cvut.cz/dataset/CORA). We shall be using the Graph Neural Networks primitives from the package [GraphNeuralNetworks](https://github.com/CarloLucibello/GraphNeuralNetworks.jl).
 
 ```@example graphneuralode_cp
-```
 # Load the packages
 using GraphNeuralNetworks, DifferentialEquations
 using DiffEqFlux: NeuralODE
@@ -282,6 +281,12 @@ function eval_loss_accuracy(X, y, mask, model, ps, st)
     acc = mean(onecold(ŷ[:,mask]) .== onecold(y[:,mask]))
     return (loss = round(l, digits=4), acc = round(acc*100, digits=2))
 end
+
+function callback(l, p, pred)
+    loss, acc = eval_loss_accuracy(X, y, val_mask, model, p, st)
+    @show loss, acc
+    return false
+end
 ```
 
 ### Setup Model
@@ -310,11 +315,7 @@ optprob = Optimization.OptimizationProblem(optf, ps)
 Finally, we use the package `Optimization.solve` to learn the parameters `ps`. We run the training loop for `epochs` number of iterations.
 
 ```@example graphneuralode
-for _ in 1:epochs
-	ps = Optimization.solve(optprob, opt, maxiters=1000).minimizer
-	optprob = remake(optprob, ps)
-	@show eval_loss_accuracy(X, y, val_mask, model, ps, st)
-end
+ps = Optimization.solve(optprob, opt, maxiters=1000, callback=callback).minimizer
 ```
 
 ## Expected Output
