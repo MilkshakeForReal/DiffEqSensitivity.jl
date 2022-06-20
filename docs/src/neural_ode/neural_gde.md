@@ -12,7 +12,8 @@ using GraphNeuralNetworks.GNNGraphs: normalized_adjacency
 using Lux, NNlib, Zygote, Random, ComponentArrays
 using Lux: AbstractExplicitLayer, glorot_normal, zeros32
 import Lux: initialparameters, initialstates
-import Optimization, OptimizationFlux
+using Optimization
+using OptimizationFlux: ADAM
 using DiffEqSensitivity
 using Statistics: mean
 using MLDatasets: Cora
@@ -125,10 +126,11 @@ function train()
     opt = ADAM(0.01f0)
     loss_clr(p) = loss(X, ytrain, train_mask, model, p, st)[1]
     optf = Optimization.OptimizationFunction((x,p)->loss_clr(x), Optimization.AutoZygote())
+    optprob = Optimization.OptimizationProblem(optf, ps)
     ## Training Loop
     for _ in 1:epochs
-        optprob = Optimization.OptimizationProblem(optf, ps)
-        ps = Optimization.solve(optprob, opt).minimizer
+        ps = Optimization.solve(optprob, opt, maxiters=1000).minimizer
+	optprob = remake(optprob, ps)
         @show eval_loss_accuracy(X, y, val_mask, model, ps, st)
     end
 end
@@ -148,7 +150,8 @@ using GraphNeuralNetworks.GNNGraphs: normalized_adjacency
 using Lux, NNlib, Optimisers, Zygote, Random, ComponentArrays
 using Lux: AbstractExplicitLayer, glorot_normal, zeros32
 import Lux: initialparameters, initialstates
-using Optimization, OptimizationFlux
+using Optimization
+using OptimizationFlux: ADAM
 using DiffEqSensitivity
 using Statistics: mean
 using MLDatasets: Cora
@@ -297,6 +300,7 @@ For this task we will be using the `ADAM` optimizer with a learning rate of `0.0
 opt = ADAM(0.01f0)
 loss_clr(p) = loss(X, ytrain, train_mask, model, p, st)[1]
 optf = Optimization.OptimizationFunction((x,p)->loss_clr(x), Optimization.AutoZygote())
+optprob = Optimization.OptimizationProblem(optf, ps)
 ```
 
 ## Training Loop
@@ -305,8 +309,8 @@ Finally, we use the package `Optimization.solve` to learn the parameters `ps`. W
 
 ```@example graphneuralode
 for _ in 1:epochs
-	optprob = Optimization.OptimizationProblem(optf, ps)
-	ps = Optimization.solve(optprob, opt).minimizer
+	ps = Optimization.solve(optprob, opt, maxiters=1000).minimizer
+	optprob = remake(optprob, ps)
 	@show eval_loss_accuracy(X, y, val_mask, model, ps, st)
 end
 ```
