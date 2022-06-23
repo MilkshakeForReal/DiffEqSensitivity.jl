@@ -11,7 +11,7 @@ using DiffEqFlux: NeuralODE
 using Random
 rng = Random.default_rng()
 
-model_gpu = Lux.Chain(Lux.Dense(2, 50, tanh), Lux.Dense(50, 2)) 
+model_gpu = Chain(Dense(2, 50, tanh), Dense(50, 2)) 
 p, st = Lux.setup(rng, model_gpu) |> gpu
 dudt(u, p, t) = model_gpu(u, p, st)[1]
 
@@ -36,9 +36,9 @@ If one is using `Lux.Chain`, then the computation takes place on the GPU with
 `f(x,p,st)` if `x`, `p` and `st` are on the GPU. This commonly looks like:
 
 ```julia
-dudt2 = Lux.Chain(ActivationFunction(x -> x.^3),
-            Lux.Dense(2,50,tanh),
-            Lux.Dense(50,2))
+dudt2 = Chain(x -> x.^3,
+              Dense(2,50,tanh),
+              Dense(50,2))
 
 u0 = Float32[2.; 0.] |> gpu
 p, st = Lux.setup(rng, dudt2) |> gpu
@@ -84,14 +84,15 @@ function trueODEfunc(du, u, p, t)
     true_A = [-0.1 2.0; -2.0 -0.1]
     du .= ((u.^3)'true_A)'
 end
+
 prob_trueode = ODEProblem(trueODEfunc, u0, tspan)
 # Make the data into a GPU-based array if the user has a GPU
 ode_data = gpu(solve(prob_trueode, Tsit5(), saveat = tsteps))
 
 
-dudt2 = Lux.Chain(#ActivationFunction(x -> x^3),
-                  Lux.Dense(2, 50, tanh),
-                  Lux.Dense(50, 2))
+dudt2 = Chain(x -> x.^3,
+              Dense(2, 50, tanh),
+              Dense(50, 2))
 u0 = Float32[2.0; 0.0] |> gpu
 p,st = Lux.setup(rng, dudt2) 
 p = Lux.ComponentArray(p) |> gpu
@@ -101,6 +102,7 @@ prob_neuralode = NeuralODE(dudt2, tspan, Tsit5(), saveat = tsteps)
 function predict_neuralode(p)
     gpu(prob_neuralode(u0,p,st)[1])
 end
+
 function loss_neuralode(p)
     pred = predict_neuralode(p)
     loss = sum(abs2, ode_data .- pred)
